@@ -1,0 +1,45 @@
+name: Create S3 Buckets
+
+on:
+  push:
+    branches:
+      - main
+  
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  create-s3-bucket:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+       # BACKEND FIRST
+      - name: Terraform Init (Backend)
+        working-directory: Terraform/backend
+        run: terraform init
+
+      - name: Terraform Apply (Backend)
+        working-directory: Terraform/backend
+        run: terraform apply -auto-approve
+
+      # APP SECOND
+      - name: Terraform Init (App)
+        working-directory: Terraform/app
+        run: terraform init
+
+      - name: Terraform Apply (App)
+        working-directory: Terraform/app
+        env:
+          TF_VAR_bucket_name: ${{ secrets.BUCKET_NAME }}
+        run: terraform apply -auto-approve
