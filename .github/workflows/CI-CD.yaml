@@ -1,42 +1,68 @@
-name: Create S3 Buckets
+name: Terraform S3 Deployment
 
 on:
   push:
     branches:
       - main
-  
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  create-s3-bucket:
+  terraform-backend:
+    name: Deploy Terraform Backend
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up AWS Credentials
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.IAM_ROLE }}
           aws-region: ${{ secrets.AWS_REGION }}
-      
-       # BACKEND FIRST
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Terraform Init (Backend)
-        working-directory: Terraform/backend
+        working-directory: Terraform/S3-Backend
         run: terraform init
 
       - name: Terraform Apply (Backend)
-        working-directory: Terraform/backend
+        working-directory: Terraform/S3-Backend
         run: terraform apply -auto-approve
 
-      # APP SECOND
+
+  terraform-app:
+    name: Deploy App Infrastructure
+    needs: terraform-backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.IAM_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Terraform Init (App)
         working-directory: Terraform/app
         run: terraform init
+
+      - name: Terraform Plan (App)
+        working-directory: Terraform/app
+        env:
+          TF_VAR_bucket_name: ${{ secrets.BUCKET_NAME }}
+        run: terraform plan
 
       - name: Terraform Apply (App)
         working-directory: Terraform/app
